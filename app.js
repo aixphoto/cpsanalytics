@@ -366,36 +366,70 @@ document.addEventListener('DOMContentLoaded', () => {
         lines.forEach(line => {
             const nums = line.match(/\d+(?:[.,]\d+)?/g);
             if (nums && nums.length >= 3 && nums.length <= 6) {
-                // 날짜(2023) 등 표 데이터가 아닌 것을 걸러내기 위해 첫 번째 숫자가 100 이하인지 확인합니다.
+                // 첫 번째 숫자가 100 이하인지 확인하여 날짜 등의 불필요한 행을 걸러냅니다.
                 const firstNum = parseFloat(nums[0].replace(',', '.'));
                 if (firstNum <= 100 && firstNum >= 0) {
-                    validRows.push(nums);
+                    validRows.push(line.trim());
                 }
             }
         });
 
         // 2. 표의 행은 항상 7줄이므로, 발견된 순서대로 앞에서부터 7개를 도메인에 매핑합니다.
         const targetRows = validRows.slice(0, 7);
-        const isInteger = (numStr) => numStr && !numStr.includes('.') && !numStr.includes(',');
+        
+        // 문자가 섞이거나 오인식된 데이터를 강제로 숫자로 변환하는 특수 함수 (원장님 요청사항 완벽 반영)
+        function forceNumber(str) {
+            if (!str) return '0';
+            // 자주 발생하는 OCR 문자 오인식을 숫자로 강제 매핑 (예: bb -> 66)
+            let cleaned = str.toLowerCase()
+                .replace(/b/g, '6')
+                .replace(/o/g, '0')
+                .replace(/l/g, '1')
+                .replace(/i/g, '1')
+                .replace(/s/g, '5')
+                .replace(/z/g, '2')
+                .replace(/g/g, '9')
+                .replace(/q/g, '9')
+                .replace(/t/g, '7')
+                .replace(/!/g, '1')
+                .replace(/\|/g, '1');
+            
+            // 숫자와 소수점만 남기고 모두 제거
+            cleaned = cleaned.replace(/[^\d.]/g, '');
+            
+            // 소수점이 여러 개 찍혔을 경우 첫 번째만 남김
+            const dotParts = cleaned.split('.');
+            if (dotParts.length > 2) {
+                cleaned = dotParts[0] + '.' + dotParts.slice(1).join('');
+            }
+            return cleaned || '0';
+        }
 
         domains.forEach((d, index) => {
             if (index < targetRows.length) {
-                let nums = targetRows[index];
+                const rawLine = targetRows[index];
                 
-                if (d.key !== "종합") {
-                    // 휴리스틱: 첫 번째 숫자에 소수점이 있다면 내점수(정수)가 누락된 것이므로 0을 앞에 채워 밀림을 방지합니다.
-                    if (!isInteger(nums[0])) {
-                        nums.unshift('0');
-                    }
+                // 해당 위치(Position)의 데이터만 정확히 가져오기 위해 공백 기준으로 분리
+                const tokens = rawLine.split(/\s+/);
+                
+                // 표의 데이터는 항상 가장 마지막 5개 항목임
+                let last5 = tokens.slice(-5);
+                
+                // 만약 인식된 토큰이 5개가 안 된다면 0으로 채움
+                while(last5.length < 5) {
+                    last5.unshift('0');
                 }
+
+                // 강제 숫자 변환 적용
+                const nums = last5.map(t => forceNumber(t));
 
                 if(d.key === "종합") {
                     d.inputS.value = fixNumber(nums[0]).toFixed(2);
-                    if (nums.length > 2) d.inputR.value = fixNumber(nums[2]).toFixed(2);
+                    d.inputR.value = fixNumber(nums[2]).toFixed(2);
                 } else {
                     d.inputS.value = fixNumber(nums[0]).toFixed(2);
                     d.inputA.value = fixNumber(nums[1]).toFixed(2);
-                    if (nums.length > 2) d.inputR.value = fixNumber(nums[2]).toFixed(2);
+                    d.inputR.value = fixNumber(nums[2]).toFixed(2);
                 }
             }
         });
