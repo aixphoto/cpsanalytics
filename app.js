@@ -475,6 +475,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Attach events
     Object.values(i).forEach(input => { if(input) input.addEventListener('input', updateDashboard); });
     simSlider.addEventListener('input', updateDashboard);
+    
+    document.getElementById('proceedBtn')?.addEventListener('click', () => {
+        alert('진행(Proceed) 기능이 아직 연결되지 않았습니다. 다음 단계를 정의해주세요!');
+    });
 
     updateDashboard();
 });
