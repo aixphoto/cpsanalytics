@@ -287,8 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const worker = await Tesseract.createWorker('kor');
             await worker.setParameters({
-                tessedit_pageseg_mode: '6',
-                tessedit_char_whitelist: '0123456789. '
+                tessedit_pageseg_mode: '6'
             });
             const result = await worker.recognize(uploadedImageFile);
             ocrDataStore = result.data.text;
@@ -410,19 +409,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (index < targetRows.length) {
                 const rawLine = targetRows[index].trim();
                 
-                // 해당 위치(Position)의 데이터만 정확히 가져오기 위해 공백 기준으로 분리
-                const tokens = rawLine.split(/\s+/);
+                // 공백 기준으로 모든 토큰 분리
+                const rawTokens = rawLine.split(/\s+/);
                 
-                // 표의 데이터는 항상 가장 마지막 5개 항목임
-                let last5 = tokens.slice(-5);
+                // 모든 토큰에 강제 숫자 변환을 적용하고, 변환 결과가 '0'인 것(즉, 순수 한글 라벨 등)을 걸러냅니다.
+                // 'bb' 같은 오인식 문자는 '66'으로 변환되어 살아남습니다.
+                let numberTokens = rawTokens.map(t => forceNumber(t)).filter(t => t !== '0' && t !== '');
                 
-                // 만약 인식된 토큰이 5개가 안 된다면 0으로 채움
-                while(last5.length < 5) {
-                    last5.unshift('0');
+                // 표의 데이터는 항상 5개여야 하므로, 만약 부족하다면(진짜 누락된 경우) 앞에 0을 채웁니다.
+                while(numberTokens.length < 5) {
+                    numberTokens.unshift('0');
                 }
-
-                // 강제 숫자 변환 적용
-                const nums = last5.map(t => forceNumber(t));
+                
+                // 안전을 위해 마지막 5개만 취함 (혹시라도 중간에 이상한 숫자가 껴있을 경우 대비)
+                const nums = numberTokens.slice(-5);
 
                 if(d.key === "종합") {
                     d.inputS.value = fixNumber(nums[0]).toFixed(2);
