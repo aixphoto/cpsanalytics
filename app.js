@@ -285,8 +285,13 @@ document.addEventListener('DOMContentLoaded', () => {
         analyzeBtn.disabled = true;
         
         try {
-            const result = await Tesseract.recognize(uploadedImageFile, 'kor');
+            const worker = await Tesseract.createWorker('kor');
+            await worker.setParameters({
+                tessedit_pageseg_mode: '6',
+            });
+            const result = await worker.recognize(uploadedImageFile);
             ocrDataStore = result.data.text;
+            await worker.terminate();
         } catch (e) {
             console.error(e);
             alert("이미지 분석 실패!");
@@ -334,6 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (foundGrade) i.grade.value = foundGrade;
 
         const text = ocrDataStore;
+        const lines = text.split('\n');
         
         function fixNumber(numStr) {
             if(!numStr) return 0;
@@ -343,33 +349,38 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return val;
         }
-
-        const safeExtract = (keyword) => {
-            return new RegExp(keyword + "[^\\d]*(\\d+(?:[.,]\\d+)?)[^\\d]+(\\d+(?:[.,]\\d+)?)[^\\d]+(\\d+(?:[.,]\\d+)?)");
-        };
         
-        // Regex logic to find scores
+        // Regex logic to find scores using line-by-line parsing
         const domains = [
-            { key: "수\\s*리", inputS: i.mathS, inputA: i.mathA, inputR: i.mathR },
-            { key: "논\\s*리", inputS: i.logicS, inputA: i.logicA, inputR: i.logicR },
-            { key: "언\\s*어", inputS: i.verbalS, inputA: i.verbalA, inputR: i.verbalR },
-            { key: "공\\s*간\\s*지\\s*각", inputS: i.spatialS, inputA: i.spatialA, inputR: i.spatialR },
-            { key: "관\\s*찰(?:과)?\\s*변\\s*별", inputS: i.observeS, inputA: i.observeA, inputR: i.observeR },
-            { key: "창\\s*의\\s*직\\s*관", inputS: i.creativeS, inputA: i.creativeA, inputR: i.creativeR },
-            { key: "종\\s*합", inputS: i.avgS, inputR: i.totalR } 
+            { key: "수리", regex: /수\s*리/, inputS: i.mathS, inputA: i.mathA, inputR: i.mathR },
+            { key: "논리", regex: /논\s*리/, inputS: i.logicS, inputA: i.logicA, inputR: i.logicR },
+            { key: "언어", regex: /언\s*어/, inputS: i.verbalS, inputA: i.verbalA, inputR: i.verbalR },
+            { key: "공간지각", regex: /공\s*간\s*지\s*각/, inputS: i.spatialS, inputA: i.spatialA, inputR: i.spatialR },
+            { key: "관찰과변별", regex: /관\s*찰(?:과)?\s*변\s*별/, inputS: i.observeS, inputA: i.observeA, inputR: i.observeR },
+            { key: "창의직관", regex: /창\s*의\s*직\s*관/, inputS: i.creativeS, inputA: i.creativeA, inputR: i.creativeR },
+            { key: "종합", regex: /종\s*합/, inputS: i.avgS, inputR: i.totalR } 
         ];
 
         domains.forEach(d => {
-            const regex = safeExtract(d.key);
-            const match = text.match(regex);
-            if(match) {
-                if(d.key === "종\\s*합") {
-                    d.inputS.value = fixNumber(match[1]).toFixed(2); // 성취도
-                    d.inputR.value = fixNumber(match[3]).toFixed(2); // 전국순위
-                } else {
-                    d.inputS.value = fixNumber(match[1]).toFixed(2); // 성취도
-                    d.inputA.value = fixNumber(match[2]).toFixed(2); // 평균성취도
-                    d.inputR.value = fixNumber(match[3]).toFixed(2); // 전국순위
+            const line = lines.find(l => d.regex.test(l));
+            if(line) {
+                let nums = line.match(/\d+(?:[.,]\d+)?/g);
+                if(nums && nums.length >= 2) {
+                    if (d.key !== "종합") {
+                        // Heuristic: If first number has a decimal point, the integer score was missed by OCR.
+                        if (nums[0].includes('.') || nums[0].includes(',')) {
+                            nums.unshift('0'); // Prepend 0 for missing score to prevent shifting
+                        }
+                    }
+                    
+                    if(d.key === "종합") {
+                        d.inputS.value = fixNumber(nums[0]).toFixed(2);
+                        if (nums.length > 2) d.inputR.value = fixNumber(nums[2]).toFixed(2);
+                    } else {
+                        d.inputS.value = fixNumber(nums[0]).toFixed(2);
+                        d.inputA.value = fixNumber(nums[1]).toFixed(2);
+                        if (nums.length > 2) d.inputR.value = fixNumber(nums[2]).toFixed(2);
+                    }
                 }
             }
         });
