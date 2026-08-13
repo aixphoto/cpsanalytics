@@ -288,6 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const worker = await Tesseract.createWorker('kor');
             await worker.setParameters({
                 tessedit_pageseg_mode: '6',
+                tessedit_char_whitelist: '0123456789. '
             });
             const result = await worker.recognize(uploadedImageFile);
             ocrDataStore = result.data.text;
@@ -407,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         domains.forEach((d, index) => {
             if (index < targetRows.length) {
-                const rawLine = targetRows[index];
+                const rawLine = targetRows[index].trim();
                 
                 // 해당 위치(Position)의 데이터만 정확히 가져오기 위해 공백 기준으로 분리
                 const tokens = rawLine.split(/\s+/);
