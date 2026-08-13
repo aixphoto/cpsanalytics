@@ -352,9 +352,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Regex logic to find scores using line-by-line parsing
         const domains = [
-            { key: "수리", regex: /수\s*리/, inputS: i.mathS, inputA: i.mathA, inputR: i.mathR },
-            { key: "논리", regex: /논\s*리/, inputS: i.logicS, inputA: i.logicA, inputR: i.logicR },
-            { key: "언어", regex: /언\s*어/, inputS: i.verbalS, inputA: i.verbalA, inputR: i.verbalR },
+            { key: "수리", regex: /(?:수|추)\s*리/, inputS: i.mathS, inputA: i.mathA, inputR: i.mathR },
+            { key: "논리", regex: /(?:논|놀)\s*리/, inputS: i.logicS, inputA: i.logicA, inputR: i.logicR },
+            { key: "언어", regex: /[언인안연운]\s*[어아]/, inputS: i.verbalS, inputA: i.verbalA, inputR: i.verbalR },
             { key: "공간지각", regex: /공\s*간\s*지\s*각/, inputS: i.spatialS, inputA: i.spatialA, inputR: i.spatialR },
             { key: "관찰과변별", regex: /관\s*찰(?:과)?\s*변\s*별/, inputS: i.observeS, inputA: i.observeA, inputR: i.observeR },
             { key: "창의직관", regex: /창\s*의\s*직\s*관/, inputS: i.creativeS, inputA: i.creativeA, inputR: i.creativeR },
@@ -362,25 +362,42 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
 
         domains.forEach(d => {
+            let finalNums = null;
+            
+            // Method 1: Line-by-line
             const line = lines.find(l => d.regex.test(l));
-            if(line) {
-                let nums = line.match(/\d+(?:[.,]\d+)?/g);
-                if(nums && nums.length >= 2) {
-                    if (d.key !== "종합") {
-                        // Heuristic: If first number has a decimal point, the integer score was missed by OCR.
-                        if (nums[0].includes('.') || nums[0].includes(',')) {
-                            nums.unshift('0'); // Prepend 0 for missing score to prevent shifting
-                        }
+            let lineNums = line ? line.match(/\d+(?:[.,]\d+)?/g) : null;
+            
+            // Method 2: Global search across newlines
+            let globalNums = null;
+            const fullTextMatch = text.match(new RegExp(d.regex.source + "[^\\d]*(\\d+(?:[.,]\\d+)?)[^\\d]+(\\d+(?:[.,]\\d+)?)[^\\d]+(\\d+(?:[.,]\\d+)?)"));
+            if (fullTextMatch) {
+                globalNums = [fullTextMatch[1], fullTextMatch[2], fullTextMatch[3]];
+            }
+
+            const isInteger = (numStr) => numStr && !numStr.includes('.') && !numStr.includes(',');
+
+            if (lineNums && lineNums.length >= 2 && isInteger(lineNums[0])) {
+                finalNums = lineNums;
+            } else if (globalNums && isInteger(globalNums[0])) {
+                finalNums = globalNums;
+            } else {
+                finalNums = (lineNums && lineNums.length >= 2) ? lineNums : globalNums;
+                if (finalNums && finalNums.length >= 2 && d.key !== "종합") {
+                    if (!isInteger(finalNums[0])) {
+                        finalNums.unshift('0');
                     }
-                    
-                    if(d.key === "종합") {
-                        d.inputS.value = fixNumber(nums[0]).toFixed(2);
-                        if (nums.length > 2) d.inputR.value = fixNumber(nums[2]).toFixed(2);
-                    } else {
-                        d.inputS.value = fixNumber(nums[0]).toFixed(2);
-                        d.inputA.value = fixNumber(nums[1]).toFixed(2);
-                        if (nums.length > 2) d.inputR.value = fixNumber(nums[2]).toFixed(2);
-                    }
+                }
+            }
+
+            if(finalNums && finalNums.length >= 2) {
+                if(d.key === "종합") {
+                    d.inputS.value = fixNumber(finalNums[0]).toFixed(2);
+                    if (finalNums.length > 2) d.inputR.value = fixNumber(finalNums[2]).toFixed(2);
+                } else {
+                    d.inputS.value = fixNumber(finalNums[0]).toFixed(2);
+                    d.inputA.value = fixNumber(finalNums[1]).toFixed(2);
+                    if (finalNums.length > 2) d.inputR.value = fixNumber(finalNums[2]).toFixed(2);
                 }
             }
         });
