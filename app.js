@@ -335,28 +335,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const text = ocrDataStore;
         
+        function fixNumber(numStr) {
+            if(!numStr) return 0;
+            let val = parseFloat(numStr.replace(',', '.'));
+            while (val > 100) {
+                val = val / 10;
+            }
+            return val;
+        }
+
+        const safeExtract = (keyword) => {
+            return new RegExp(keyword + "[^\\d]*(\\d+(?:[.,]\\d+)?)[^\\d]+(\\d+(?:[.,]\\d+)?)[^\\d]+(\\d+(?:[.,]\\d+)?)");
+        };
+        
         // Regex logic to find scores
         const domains = [
-            { key: "수리", inputS: i.mathS, inputA: i.mathA, inputR: i.mathR },
-            { key: "논리", inputS: i.logicS, inputA: i.logicA, inputR: i.logicR },
-            { key: "언어", inputS: i.verbalS, inputA: i.verbalA, inputR: i.verbalR },
-            { key: "공간지각", inputS: i.spatialS, inputA: i.spatialA, inputR: i.spatialR },
-            { key: "관찰과변별", inputS: i.observeS, inputA: i.observeA, inputR: i.observeR },
-            { key: "창의직관", inputS: i.creativeS, inputA: i.creativeA, inputR: i.creativeR },
-            { key: "종합", inputS: i.avgS, inputR: i.totalR } 
+            { key: "수\\s*리", inputS: i.mathS, inputA: i.mathA, inputR: i.mathR },
+            { key: "논\\s*리", inputS: i.logicS, inputA: i.logicA, inputR: i.logicR },
+            { key: "언\\s*어", inputS: i.verbalS, inputA: i.verbalA, inputR: i.verbalR },
+            { key: "공\\s*간\\s*지\\s*각", inputS: i.spatialS, inputA: i.spatialA, inputR: i.spatialR },
+            { key: "관\\s*찰(?:과)?\\s*변\\s*별", inputS: i.observeS, inputA: i.observeA, inputR: i.observeR },
+            { key: "창\\s*의\\s*직\\s*관", inputS: i.creativeS, inputA: i.creativeA, inputR: i.creativeR },
+            { key: "종\\s*합", inputS: i.avgS, inputR: i.totalR } 
         ];
 
         domains.forEach(d => {
-            const regex = new RegExp(`${d.key}\\s+(\\d+(?:\\.\\d+)?)\\s+(\\d+(?:\\.\\d+)?)\\s+(\\d+(?:\\.\\d+)?)`);
+            const regex = safeExtract(d.key);
             const match = text.match(regex);
             if(match) {
-                if(d.key === "종합") {
-                    d.inputS.value = parseFloat(match[1]).toFixed(2); // 성취도
-                    d.inputR.value = parseFloat(match[3]).toFixed(2); // 전국순위
+                if(d.key === "종\\s*합") {
+                    d.inputS.value = fixNumber(match[1]).toFixed(2); // 성취도
+                    d.inputR.value = fixNumber(match[3]).toFixed(2); // 전국순위
                 } else {
-                    d.inputS.value = parseFloat(match[1]).toFixed(2); // 성취도
-                    d.inputA.value = parseFloat(match[2]).toFixed(2); // 평균성취도
-                    d.inputR.value = parseFloat(match[3]).toFixed(2); // 전국순위
+                    d.inputS.value = fixNumber(match[1]).toFixed(2); // 성취도
+                    d.inputA.value = fixNumber(match[2]).toFixed(2); // 평균성취도
+                    d.inputR.value = fixNumber(match[3]).toFixed(2); // 전국순위
                 }
             }
         });
