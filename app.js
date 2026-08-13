@@ -1,5 +1,4 @@
-// Initialize PDF.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+// Tesseract.js handles its own worker by default.
 Chart.register(ChartDataLabels);
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -22,11 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Upload Elements
     const uploadBox = document.getElementById('uploadBox');
-    const pdfUpload = document.getElementById('pdfUpload');
+    const imageUpload = document.getElementById('imageUpload');
     const uploadText = document.getElementById('uploadText');
     const analyzeBtn = document.getElementById('analyzeBtn');
 
-    let pdfDataStore = null;
+    let ocrDataStore = null;
+    let uploadedImageFile = null;
 
     Chart.defaults.font.family = "'Pretendard', -apple-system, sans-serif";
     
@@ -255,52 +255,47 @@ document.addEventListener('DOMContentLoaded', () => {
         barChart.update();
     }
 
-    // --- PDF Upload Logic ---
-    uploadBox.addEventListener('click', () => pdfUpload.click());
+    // --- Image Upload Logic ---
+    uploadBox.addEventListener('click', () => imageUpload.click());
     uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('dragover'); });
     uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
     uploadBox.addEventListener('drop', (e) => {
         e.preventDefault(); uploadBox.classList.remove('dragover');
         if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
     });
-    pdfUpload.addEventListener('change', (e) => {
+    imageUpload.addEventListener('change', (e) => {
         if(e.target.files.length) handleFile(e.target.files[0]);
     });
 
     function handleFile(file) {
-        if(file.type !== "application/pdf") { alert("PDF 파일만 업로드 가능합니다."); return; }
+        if(!file.type.startsWith("image/")) { alert("이미지 파일만 업로드 가능합니다 (PNG, JPG 등)."); return; }
         uploadText.innerHTML = `<strong>${file.name}</strong> 준비 완료!`;
+        uploadedImageFile = file;
         
         analyzeBtn.classList.remove('disabled');
         analyzeBtn.classList.add('active');
         analyzeBtn.disabled = false;
-
-        const fileReader = new FileReader();
-        fileReader.onload = async function() {
-            const typedarray = new Uint8Array(this.result);
-            try {
-                const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                let fullText = "";
-                for(let j = 1; j <= pdf.numPages; j++) {
-                    const page = await pdf.getPage(j);
-                    const textContent = await page.getTextContent();
-                    // Merge elements without space to easily find names, but for numbers we need spaces.
-                    // Instead, let's keep it as is, and use a robust regex.
-                    fullText += textContent.items.map(s => s.str).join(" ") + "\n";
-                }
-                pdfDataStore = fullText;
-            } catch(e) {
-                console.error(e);
-                alert("PDF 읽기 실패!");
-            }
-        };
-        fileReader.readAsArrayBuffer(file);
     }
 
-    analyzeBtn.addEventListener('click', () => {
-        if(!pdfDataStore) return;
+    analyzeBtn.addEventListener('click', async () => {
+        if(!uploadedImageFile) return;
         
-        const textClean = pdfDataStore.replace(/\s+/g, '');
+        // Show Loading State
+        analyzeBtn.innerHTML = '이미지 분석 중... (최대 10초)';
+        analyzeBtn.disabled = true;
+        
+        try {
+            const result = await Tesseract.recognize(uploadedImageFile, 'kor');
+            ocrDataStore = result.data.text;
+        } catch (e) {
+            console.error(e);
+            alert("이미지 분석 실패!");
+            analyzeBtn.innerHTML = '데이터 분석하기';
+            analyzeBtn.disabled = false;
+            return;
+        }
+        
+        const textClean = ocrDataStore.replace(/\s+/g, '');
         
         let foundName = null;
         let foundGrade = null;
@@ -338,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (foundName) i.name.value = foundName;
         if (foundGrade) i.grade.value = foundGrade;
 
-        const text = pdfDataStore;
+        const text = ocrDataStore;
         
         // Regex logic to find scores
         const domains = [
@@ -371,8 +366,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset button
         analyzeBtn.classList.remove('active');
         analyzeBtn.classList.add('disabled');
+        analyzeBtn.innerHTML = '데이터 분석하기';
         analyzeBtn.disabled = true;
-        uploadText.innerHTML = "분석 완료! 새로운 PDF를 넣으세요.";
+        uploadText.innerHTML = "분석 완료! 새로운 이미지를 넣으세요.";
+        uploadedImageFile = null;
         
         // Trigger visual effect
         document.querySelector('.report-panel').style.opacity = '0.5';
