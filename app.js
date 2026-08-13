@@ -352,52 +352,50 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Regex logic to find scores using line-by-line parsing
         const domains = [
-            { key: "수리", regex: /(?:수|추)\s*리/, inputS: i.mathS, inputA: i.mathA, inputR: i.mathR },
-            { key: "논리", regex: /(?:논|놀)\s*리/, inputS: i.logicS, inputA: i.logicA, inputR: i.logicR },
-            { key: "언어", regex: /[언인안연운]\s*[어아]/, inputS: i.verbalS, inputA: i.verbalA, inputR: i.verbalR },
-            { key: "공간지각", regex: /공\s*간\s*지\s*각/, inputS: i.spatialS, inputA: i.spatialA, inputR: i.spatialR },
-            { key: "관찰과변별", regex: /관\s*찰(?:과)?\s*변\s*별/, inputS: i.observeS, inputA: i.observeA, inputR: i.observeR },
-            { key: "창의직관", regex: /창\s*의\s*직\s*관/, inputS: i.creativeS, inputA: i.creativeA, inputR: i.creativeR },
-            { key: "종합", regex: /종\s*합/, inputS: i.avgS, inputR: i.totalR } 
+            { key: "수리", inputS: i.mathS, inputA: i.mathA, inputR: i.mathR },
+            { key: "논리", inputS: i.logicS, inputA: i.logicA, inputR: i.logicR },
+            { key: "언어", inputS: i.verbalS, inputA: i.verbalA, inputR: i.verbalR },
+            { key: "공간지각", inputS: i.spatialS, inputA: i.spatialA, inputR: i.spatialR },
+            { key: "관찰과변별", inputS: i.observeS, inputA: i.observeA, inputR: i.observeR },
+            { key: "창의직관", inputS: i.creativeS, inputA: i.creativeA, inputR: i.creativeR },
+            { key: "종합", inputS: i.avgS, inputR: i.totalR } 
         ];
 
-        domains.forEach(d => {
-            let finalNums = null;
-            
-            // Method 1: Line-by-line
-            const line = lines.find(l => d.regex.test(l));
-            let lineNums = line ? line.match(/\d+(?:[.,]\d+)?/g) : null;
-            
-            // Method 2: Global search across newlines
-            let globalNums = null;
-            const fullTextMatch = text.match(new RegExp(d.regex.source + "[^\\d]*(\\d+(?:[.,]\\d+)?)[^\\d]+(\\d+(?:[.,]\\d+)?)[^\\d]+(\\d+(?:[.,]\\d+)?)"));
-            if (fullTextMatch) {
-                globalNums = [fullTextMatch[1], fullTextMatch[2], fullTextMatch[3]];
-            }
-
-            const isInteger = (numStr) => numStr && !numStr.includes('.') && !numStr.includes(',');
-
-            if (lineNums && lineNums.length >= 2 && isInteger(lineNums[0])) {
-                finalNums = lineNums;
-            } else if (globalNums && isInteger(globalNums[0])) {
-                finalNums = globalNums;
-            } else {
-                finalNums = (lineNums && lineNums.length >= 2) ? lineNums : globalNums;
-                if (finalNums && finalNums.length >= 2 && d.key !== "종합") {
-                    if (!isInteger(finalNums[0])) {
-                        finalNums.unshift('0');
-                    }
+        // 1. 모든 줄을 스캔하여 숫자 데이터가 3개~6개 존재하는 '표의 행'을 찾아냅니다.
+        const validRows = [];
+        lines.forEach(line => {
+            const nums = line.match(/\d+(?:[.,]\d+)?/g);
+            if (nums && nums.length >= 3 && nums.length <= 6) {
+                // 날짜(2023) 등 표 데이터가 아닌 것을 걸러내기 위해 첫 번째 숫자가 100 이하인지 확인합니다.
+                const firstNum = parseFloat(nums[0].replace(',', '.'));
+                if (firstNum <= 100 && firstNum >= 0) {
+                    validRows.push(nums);
                 }
             }
+        });
 
-            if(finalNums && finalNums.length >= 2) {
+        // 2. 표의 행은 항상 7줄이므로, 발견된 순서대로 앞에서부터 7개를 도메인에 매핑합니다.
+        const targetRows = validRows.slice(0, 7);
+        const isInteger = (numStr) => numStr && !numStr.includes('.') && !numStr.includes(',');
+
+        domains.forEach((d, index) => {
+            if (index < targetRows.length) {
+                let nums = targetRows[index];
+                
+                if (d.key !== "종합") {
+                    // 휴리스틱: 첫 번째 숫자에 소수점이 있다면 내점수(정수)가 누락된 것이므로 0을 앞에 채워 밀림을 방지합니다.
+                    if (!isInteger(nums[0])) {
+                        nums.unshift('0');
+                    }
+                }
+
                 if(d.key === "종합") {
-                    d.inputS.value = fixNumber(finalNums[0]).toFixed(2);
-                    if (finalNums.length > 2) d.inputR.value = fixNumber(finalNums[2]).toFixed(2);
+                    d.inputS.value = fixNumber(nums[0]).toFixed(2);
+                    if (nums.length > 2) d.inputR.value = fixNumber(nums[2]).toFixed(2);
                 } else {
-                    d.inputS.value = fixNumber(finalNums[0]).toFixed(2);
-                    d.inputA.value = fixNumber(finalNums[1]).toFixed(2);
-                    if (finalNums.length > 2) d.inputR.value = fixNumber(finalNums[2]).toFixed(2);
+                    d.inputS.value = fixNumber(nums[0]).toFixed(2);
+                    d.inputA.value = fixNumber(nums[1]).toFixed(2);
+                    if (nums.length > 2) d.inputR.value = fixNumber(nums[2]).toFixed(2);
                 }
             }
         });
