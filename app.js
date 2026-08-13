@@ -289,7 +289,29 @@ document.addEventListener('DOMContentLoaded', () => {
             await worker.setParameters({
                 tessedit_pageseg_mode: '6'
             });
-            const result = await worker.recognize(uploadedImageFile);
+            
+            // 원장님 특별 조치: 업로드된 이미지가 작아서 67을 4로 읽는 문제를 해결하기 위해
+            // 이미지를 캔버스에 2.5배 뻥튀기(강제 확대)하여 화질을 높인 후 AI에게 읽히도록 합니다.
+            const img = new Image();
+            img.src = URL.createObjectURL(uploadedImageFile);
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+            });
+            
+            const canvas = document.createElement('canvas');
+            const scale = 2.5; // 2.5배 확대
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext('2d');
+            
+            // 확대 시 글씨가 깨지지 않도록 고품질 보간 적용
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            // 원본 파일 대신, 2.5배 확대된 캔버스를 AI에게 전달
+            const result = await worker.recognize(canvas);
             ocrDataStore = result.data.text;
             await worker.terminate();
         } catch (e) {
