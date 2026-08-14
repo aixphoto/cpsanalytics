@@ -452,11 +452,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 const arrayBuffer = await uploadedImageFile.arrayBuffer();
                 const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
                 let fullText = "";
+                
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
                     const content = await page.getTextContent();
-                    const strings = content.items.map(item => item.str);
-                    fullText += strings.join(" ") + "\n";
+                    
+                    // PDF 텍스트 항목을 좌표와 함께 추출
+                    const items = content.items.map(item => ({
+                        str: item.str,
+                        x: item.transform[4],
+                        y: item.transform[5]
+                    }));
+                    
+                    // 위에서 아래로(Y 내림차순), 같은 줄이면 왼쪽에서 오른쪽으로(X 오름차순) 정렬
+                    items.sort((a, b) => {
+                        if (Math.abs(a.y - b.y) > 5) {
+                            return b.y - a.y; 
+                        }
+                        return a.x - b.x; 
+                    });
+                    
+                    let lines = [];
+                    let currentLine = [];
+                    let lastY = null;
+                    
+                    // Y 좌표가 5px 이내로 비슷하면 같은 줄로 묶음
+                    for (let item of items) {
+                        // 빈 문자열 무시
+                        if (!item.str.trim()) continue;
+                        
+                        if (lastY === null) {
+                            currentLine.push(item.str);
+                            lastY = item.y;
+                        } else if (Math.abs(lastY - item.y) <= 5) {
+                            currentLine.push(item.str);
+                        } else {
+                            lines.push(currentLine.join(" "));
+                            currentLine = [item.str];
+                            lastY = item.y;
+                        }
+                    }
+                    if (currentLine.length > 0) lines.push(currentLine.join(" "));
+                    
+                    fullText += lines.join("\n") + "\n";
                 }
                 parseAndApplyData(fullText);
             }
