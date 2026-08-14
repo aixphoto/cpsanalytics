@@ -268,7 +268,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function handleFile(file) {
-        if(!file.type.startsWith("image/")) { alert("이미지 파일만 업로드 가능합니다 (PNG, JPG 등)."); return; }
+        if(!file.type.startsWith("image/") && !file.type.includes("html") && !file.type.includes("pdf")) { 
+            alert("지원하지 않는 파일 형식입니다 (이미지, HTML, PDF만 가능)."); 
+            return; 
+        }
         uploadText.innerHTML = `<strong>${file.name}</strong> 준비 완료!`;
         uploadedImageFile = file;
         
@@ -277,52 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
         analyzeBtn.disabled = false;
     }
 
-    analyzeBtn.addEventListener('click', async () => {
-        if(!uploadedImageFile) return;
-        
-        // Show Loading State
-        analyzeBtn.innerHTML = '이미지 분석 중... (최대 10초)';
-        analyzeBtn.disabled = true;
-        
-        try {
-            const worker = await Tesseract.createWorker('kor');
-            await worker.setParameters({
-                tessedit_pageseg_mode: '6'
-            });
-            
-            // 원장님 특별 조치: 업로드된 이미지가 작아서 67을 4로 읽는 문제를 해결하기 위해
-            // 이미지를 캔버스에 2.5배 뻥튀기(강제 확대)하여 화질을 높인 후 AI에게 읽히도록 합니다.
-            const img = new Image();
-            img.src = URL.createObjectURL(uploadedImageFile);
-            await new Promise((resolve, reject) => {
-                img.onload = resolve;
-                img.onerror = reject;
-            });
-            
-            const canvas = document.createElement('canvas');
-            const scale = 2.5; // 2.5배 확대
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
-            const ctx = canvas.getContext('2d');
-            
-            // 확대 시 글씨가 깨지지 않도록 고품질 보간 적용
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
-            // 원본 파일 대신, 2.5배 확대된 캔버스를 AI에게 전달
-            const result = await worker.recognize(canvas);
-            ocrDataStore = result.data.text;
-            await worker.terminate();
-        } catch (e) {
-            console.error(e);
-            alert("이미지 분석 실패!");
-            analyzeBtn.innerHTML = '데이터 분석하기';
-            analyzeBtn.disabled = false;
-            return;
-        }
-        
-        const textClean = ocrDataStore.replace(/\s+/g, '');
+    function parseAndApplyData(text) {
+        const textClean = text.replace(/\s+/g, '');
         
         let foundName = null;
         let foundGrade = null;
@@ -360,7 +319,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (foundName) i.name.value = foundName;
         if (foundGrade) i.grade.value = foundGrade;
 
-        const text = ocrDataStore;
         const lines = text.split('\n');
         
         function fixNumber(numStr) {
@@ -435,7 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rawTokens = rawLine.split(/\s+/);
                 
                 // 모든 토큰에 강제 숫자 변환을 적용하고, 변환 결과가 '0'인 것(즉, 순수 한글 라벨 등)을 걸러냅니다.
-                // 'bb' 같은 오인식 문자는 '66'으로 변환되어 살아남습니다.
                 let numberTokens = rawTokens.map(t => forceNumber(t)).filter(t => t !== '0' && t !== '');
                 
                 // 표의 데이터는 항상 5개여야 하므로, 만약 부족하다면(진짜 누락된 경우) 앞에 0을 채웁니다.
@@ -443,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     numberTokens.unshift('0');
                 }
                 
-                // 안전을 위해 마지막 5개만 취함 (혹시라도 중간에 이상한 숫자가 껴있을 경우 대비)
+                // 안전을 위해 마지막 5개만 취함
                 const nums = numberTokens.slice(-5);
 
                 if(d.key === "종합") {
@@ -464,12 +421,81 @@ document.addEventListener('DOMContentLoaded', () => {
         analyzeBtn.classList.add('disabled');
         analyzeBtn.innerHTML = '데이터 분석하기';
         analyzeBtn.disabled = true;
-        uploadText.innerHTML = "분석 완료! 새로운 이미지를 넣으세요.";
+        uploadText.innerHTML = "분석 완료! 새로운 파일을 넣으세요.";
         uploadedImageFile = null;
         
         // Trigger visual effect
         document.querySelector('.report-panel').style.opacity = '0.5';
         setTimeout(() => { document.querySelector('.report-panel').style.opacity = '1'; }, 300);
+    }
+
+    analyzeBtn.addEventListener('click', async () => {
+        if(!uploadedImageFile) return;
+        
+        analyzeBtn.innerHTML = '데이터 분석 중...';
+        analyzeBtn.disabled = true;
+        
+        try {
+            if (uploadedImageFile.type.includes("html")) {
+                // HTML 처리 로직
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const htmlString = e.target.result;
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlString, 'text/html');
+                    parseAndApplyData(doc.body.innerText);
+                };
+                reader.readAsText(uploadedImageFile);
+            } 
+            else if (uploadedImageFile.type.includes("pdf")) {
+                // PDF 처리 로직
+                const arrayBuffer = await uploadedImageFile.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+                let fullText = "";
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    const strings = content.items.map(item => item.str);
+                    fullText += strings.join(" ") + "\n";
+                }
+                parseAndApplyData(fullText);
+            }
+            else {
+                // 기존 이미지 OCR 처리 로직
+                analyzeBtn.innerHTML = '이미지 OCR 분석 중... (최대 10초)';
+                const worker = await Tesseract.createWorker('kor');
+                await worker.setParameters({
+                    tessedit_pageseg_mode: '6'
+                });
+                
+                const img = new Image();
+                img.src = URL.createObjectURL(uploadedImageFile);
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                });
+                
+                const canvas = document.createElement('canvas');
+                const scale = 2.5; 
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                const result = await worker.recognize(canvas);
+                await worker.terminate();
+                
+                parseAndApplyData(result.data.text);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("데이터 분석 실패!");
+            analyzeBtn.innerHTML = '데이터 분석하기';
+            analyzeBtn.disabled = false;
+        }
     });
 
     // Attach events

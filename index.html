@@ -16,6 +16,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- Tesseract.js 라이브러리 추가 -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- PDF.js 라이브러리 추가 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // PDF.js 워커 경로 설정
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
 </head>
 <body>
     
@@ -50,9 +56,9 @@
                 <div class="panel-section upload-section">
                     <h3>진단 결과 원클릭 분석</h3>
                     <div class="upload-box" id="uploadBox">
-                        <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+                        <input type="file" id="imageUpload" accept="image/*, .html, .pdf" style="display: none;">
                         <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                        <p id="uploadText">결과 파일을 이곳에 옮겨주세요.</p>
+                        <p id="uploadText">결과 파일을 이곳에 옮겨주세요.<br><span style="font-size: 0.8em; color: #888;">(이미지, HTML, PDF 지원)</span></p>
                     </div>
                     <button id="analyzeBtn" class="btn-analyze disabled" disabled>데이터 분석하기</button>
                 </div>
@@ -191,6 +197,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=17.0"></script>
+    <script src="app.js?v=18.0"></script>
 </body>
 </html>
