@@ -541,4 +541,29 @@ document.addEventListener('DOMContentLoaded', () => {
     simSlider.addEventListener('input', updateDashboard);
 
     updateDashboard();
+
+    // --- Mobile Layout Adjustments ---
+    const simHeaderBox = document.querySelector('.sim-header-box');
+    const topNav = document.querySelector('.top-nav');
+    const radarCard = document.querySelector('.radar-card');
+    const saveBtn = document.getElementById('saveBtn');
+
+    function handleResize() {
+        if (window.innerWidth <= 1024) {
+            // 모바일: 시뮬레이션 박스를 레이더 차트(사고균형도) 맨 위로 이동
+            if (radarCard && simHeaderBox && radarCard.firstChild !== simHeaderBox) {
+                simHeaderBox.style.marginBottom = '20px';
+                radarCard.insertBefore(simHeaderBox, radarCard.firstChild);
+            }
+        } else {
+            // PC: 시뮬레이션 박스를 다시 상단 헤더로 이동 (저장 버튼 앞)
+            if (topNav && simHeaderBox && saveBtn && topNav.contains(saveBtn)) {
+                simHeaderBox.style.marginBottom = '0';
+                topNav.insertBefore(simHeaderBox, saveBtn);
+            }
+        }
+    }
+    
+    window.addEventListener('resize', handleResize);
+    handleResize(); // 초기 실행
 });
